@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#243b53">
+<meta name="description" content="Stroop task research app">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Stroop Task Research</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color:#243447;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}header{background:#243b53;color:#fff;padding:18px 16px}header h1{font-size:1.25rem;margin:0 0 5px}header p{margin:0;font-size:.9rem;opacity:.9}.wrap{max-width:760px;margin:22px auto;padding:0 14px}.card{background:white;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 3px 14px #172b4d12}h2{font-size:1.15rem;margin-top:0}label{display:block;font-weight:600;margin:13px 0 6px}input,select,button{font:inherit}input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;background:white}button{border:0;border-radius:9px;padding:12px 16px;background:#2563eb;color:white;font-weight:700;cursor:pointer}button.secondary{background:#e2e8f0;color:#243447}button.danger{background:#b91c1c}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.muted{color:#64748b;font-size:.92rem;line-height:1.5}.hidden{display:none!important}.stimulus{font-size:clamp(2.6rem,12vw,5rem);font-weight:800;letter-spacing:.06em;text-align:center;margin:36px 0 26px;min-height:1.2em}.answers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.answers button{min-height:58px;font-size:1rem}.progress{height:8px;background:#e2e8f0;border-radius:8px;overflow:hidden}.progress span{display:block;height:100%;background:#2563eb;width:0}.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{padding:12px;background:#f1f5f9;border-radius:9px}.stat b{display:block;font-size:1.3rem;margin-top:4px}table{border-collapse:collapse;width:100%;font-size:.85rem}th,td{text-align:left;border-bottom:1px solid #e2e8f0;padding:9px 6px} .tablewrap{overflow:auto}footer{text-align:center;color:#64748b;font-size:.8rem;padding:20px}@media(min-width:600px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header><h1>Stroop Task Research</h1><p>Task performance and response recording</p></header>
+<main class="wrap">
+<section id="welcome" class="card">
+<h2>Participant Information</h2>
+<p class="muted">Enter your assigned participant code and research condition before beginning. Your answers and response times will be recorded on this device.</p>
+<label for="pid">Participant code</label><input id="pid" maxlength="30" placeholder="e.g., P001" autocomplete="off">
+<label for="group">Condition</label><select id="group"><option value="Observed">Observed</option><option value="Unobserved">Unobserved</option></select>
+<label><input id="consent" type="checkbox" style="width:auto;margin-right:8px">I have read the instructions and agree to participate.</label>
+<div class="actions"><button id="start">Start task</button><button class="secondary" id="install" hidden>Install app</button></div>
+<p class="muted">The task has 50 items. Answer according to the ink color, not the word. There is no visible countdown timer.</p>
+</section>
+<section id="task" class="card hidden">
+<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span id="itemLabel">Item 1 of 50</span><span id="conditionLabel" class="muted"></span></div>
+<div class="progress" style="margin-top:10px"><span id="progress"></span></div>
+<p class="muted" style="text-align:center;margin:20px 0 0">Select the INK COLOR of the word.</p>
+<div id="stimulus" class="stimulus" aria-live="polite">RED</div>
+<div id="answers" class="answers"></div>
+<p id="feedback" class="muted" aria-live="polite"></p>
+</section>
+<section id="done" class="card hidden"><h2>Task completed</h2><p id="doneText">Your responses have been saved on this device.</p><div class="actions"><button id="finish">Finish</button></div></section>
+<section id="admin" class="card hidden">
+<h2>Researcher dashboard</h2>
+<div id="adminLogin"><p class="muted">Enter the admin passcode to view records on this browser.</p><label for="pass">Admin passcode</label><input id="pass" type="password" autocomplete="current-password"><div class="actions"><button id="login">Log in</button></div><p id="loginError" class="muted"></p></div>
+<div id="adminData" class="hidden">
+<div class="stats" id="stats"></div><h3>Condition comparison</h3><div class="tablewrap" id="comparison"></div><h3>Participants</h3><div class="actions"><button id="export">Export CSV</button><button id="refresh" class="secondary">Refresh</button><button id="clear" class="danger">Clear local records</button></div><div class="tablewrap" id="records"></div><p class="muted">Records are stored only in this browser/device. This dashboard does not collect data from other participants' devices.</p>
+</div></section>
+</main><footer>Research use only · Confirm consent and study procedures with your adviser.</footer>
+<script>
+const STORE='STROOP_RESEARCH_DATA_V1', ADMIN_PASS='research2026';
+const colors=[{name:'RED',hex:'#e53935'},{name:'BLUE',hex:'#1d4ed8'},{name:'GREEN',hex:'#16803c'},{name:'YELLOW',hex:'#c28a00'}];
+let items=[],idx=0,answers=[],participant='',group='',shownAt=0,installPrompt=null,adminUnlocked=false;
+const $=id=>document.getElementById(id);
+function load(){try{return JSON.parse(localStorage.getItem(STORE)||'[]')}catch{return []}}
+function save(rows){localStorage.setItem(STORE,JSON.stringify(rows))}
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function makeItems(){let a=[];for(let i=0;i<25;i++){let c=Math.floor(Math.random()*4);a.push({word:colors[c].name,color:colors[c].name,congruent:true});let w=(c+1+Math.floor(Math.random()*3))%4;a.push({word:colors[w].name,color:colors[c].name,congruent:false})}return shuffle(a)}
+function show(id){['welcome','task','done','admin'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
+$('start').onclick=()=>{participant=$('pid').value.trim();group=$('group').value;if(!participant){alert('Please enter your participant code.');return}if(!$('consent').checked){alert('Please confirm consent before starting.');return}if(load().some(x=>x.participant===participant)){alert('This participant code already exists in the records on this browser. Please check the code with the researcher.');return}items=makeItems();idx=0;answers=[];show('task');renderItem()};
+function renderItem(){const it=items[idx];$('itemLabel').textContent=`Item ${idx+1} of ${items.length}`;$('conditionLabel').textContent=group;$('progress').style.width=(idx/items.length*100)+'%';$('stimulus').textContent=it.word;$('stimulus').style.color=colors.find(c=>c.name===it.color).hex;$('feedback').textContent='';$('answers').innerHTML='';shownAt=performance.now();colors.forEach(c=>{let b=document.createElement('button');b.textContent=c.name;b.style.background=c.hex;b.style.color=c.name==='YELLOW'?'#17202a':'white';b.onclick=()=>answer(c.name);$('answers').appendChild(b)})}
+function answer(selected){let rt=Math.round(performance.now()-shownAt),it=items[idx];answers.push({item:idx+1,word:it.word,inkColor:it.color,congruent:it.congruent,answer:selected,correct:selected===it.color,reactionTimeMs:rt});idx++;if(idx<items.length)renderItem();else complete()}
+function complete(){const correct=answers.filter(a=>a.correct).length;const record={participant,group,completedAt:new Date().toISOString(),totalItems:items.length,correct,incorrect:items.length-correct,accuracyPercent:Math.round(correct/items.length*10000)/100,meanReactionTimeMs:Math.round(answers.reduce((s,a)=>s+a.reactionTimeMs,0)/answers.length),responses:answers};let rows=load();rows.push(record);save(rows);$('progress').style.width='100%';$('doneText').textContent=`Participant ${participant}: ${correct}/50 correct (${record.accuracyPercent}% accuracy). Your responses have been saved on this device.`;show('done')}
+$('finish').onclick=()=>{show('welcome');$('pid').value='';$('consent').checked=false};
+function avg(a,key){return a.length?Math.round(a.reduce((s,x)=>s+x[key],0)/a.length*100)/100:'—'}
+function renderAdmin(){let rows=load();$('stats').innerHTML='';[['Participants',rows.length],['Observed',rows.filter(x=>x.group==='Observed').length],['Unobserved',rows.filter(x=>x.group==='Unobserved').length],['Mean accuracy',rows.length?avg(rows,'accuracyPercent')+'%':'—']].forEach(([k,v])=>{let d=document.createElement('div');d.className='stat';d.textContent=k;let b=document.createElement('b');b.textContent=v;d.appendChild(b);$('stats').appendChild(d)});$('comparison').innerHTML=table(['Condition','N','Mean accuracy (%)','Mean RT (ms)'],['Observed','Unobserved'].map(g=>{let a=rows.filter(x=>x.group===g);return[g,a.length,avg(a,'accuracyPercent'),avg(a,'meanReactionTimeMs')]}));$('records').innerHTML=table(['Code','Condition','Date','Correct/50','Accuracy','Mean RT (ms)','Items'],rows.map(r=>[r.participant,r.group,new Date(r.completedAt).toLocaleString(),`${r.correct}/${r.totalItems}`,r.accuracyPercent+'%',r.meanReactionTimeMs,`<button class="secondary" onclick="viewItems('${encodeURIComponent(r.participant)}')">View</button>`]))}
+function table(headers,rows){return '<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+v+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
+window.viewItems=function(code){let r=load().find(x=>x.participant===decodeURIComponent(code));if(!r)return;let w=window.open('','_blank');if(!w){alert('Allow pop-ups to view item records.');return}w.document.write('<title>Item records '+r.participant+'</title><h2>Participant '+r.participant+' — '+r.group+'</h2>'+table(['Item','Word','Ink color','Congruency','Answer','Correct','RT (ms)'],r.responses.map(a=>[a.item,a.word,a.inkColor,a.congruent?'Congruent':'Incongruent',a.answer,a.correct?'Yes':'No',a.reactionTimeMs])));w.document.close()};
+$('login').onclick=()=>{if($('pass').value===ADMIN_PASS){adminUnlocked=true;$('adminLogin').classList.add('hidden');$('adminData').classList.remove('hidden');renderAdmin()}else $('loginError').textContent='Incorrect passcode.'};
+$('export').onclick=()=>{let rows=load(),out=[['participant','group','completedAt','item','word','inkColor','congruent','answer','correct','reactionTimeMs']];rows.forEach(r=>r.responses.forEach(a=>out.push([r.participant,r.group,r.completedAt,a.item,a.word,a.inkColor,a.congruent,a.answer,a.correct,a.reactionTimeMs])));let csv=out.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');let url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));let a=document.createElement('a');a.href=url;a.download='stroop-responses.csv';a.click();URL.revokeObjectURL(url)};
+$('refresh').onclick=renderAdmin;$('clear').onclick=()=>{if(confirm('Permanently clear all records stored in this browser?')){save([]);renderAdmin()}};
+document.querySelector('header').onclick=()=>{};let adminBtn=document.createElement('button');adminBtn.textContent='Researcher';adminBtn.className='secondary';adminBtn.style.cssText='position:absolute;right:12px;top:16px;padding:7px 10px;font-size:.8rem';adminBtn.onclick=()=>show('admin');document.querySelector('header').appendChild(adminBtn);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('install').hidden=false});$('install').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('install').hidden=true}else alert('Use your browser menu and choose “Install app” or “Add to Home screen”.')};
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
